@@ -4,7 +4,7 @@ use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme}
 
 use crate::Message;
 use crate::components::ui::{ButtonSize, ButtonVariant, THEME_CORNER_RADIUS, button_style};
-use crate::models::{ItemPayload, VaultItemDetails};
+use crate::models::{ItemKind, ItemPayload, VaultItemDetails};
 
 pub(crate) fn view(item: &VaultItemDetails, show_password: bool) -> Element<'_, Message> {
     let title = truncate_text(&item.title, 42);
@@ -71,6 +71,18 @@ fn header_icon<'a>(item: &'a VaultItemDetails) -> Element<'a, Message> {
             .into();
     }
 
+    if item.kind == ItemKind::Card {
+        return container(
+            svg("src/icons/card_icon.svg")
+                .width(20)
+                .height(20)
+                .style(icon_style),
+        )
+        .padding(8)
+        .style(section_style)
+        .into();
+    }
+
     container(
         svg("src/icons/globe.svg")
             .width(20)
@@ -115,17 +127,13 @@ fn details_body(item: &VaultItemDetails, show_password: bool) -> Element<'_, Mes
                     "Cardholder",
                     card.cardholder_name.clone()
                 ),
-                detail_row(
-                    "src/icons/key_icon.svg",
-                    "Number",
-                    masked_card(&card.number)
-                ),
+                card_number_row(show_password, &card.number),
                 detail_row(
                     "src/icons/pencil_icon.svg",
                     "Expiration",
                     card.expiration_date.clone()
                 ),
-                detail_row("src/icons/key_icon.svg", "Security code", "•••".to_owned()),
+                security_code_row(show_password, &card.security_code),
             ]),
             section_card(column![
                 detail_row(
@@ -181,16 +189,57 @@ fn password_row<'a>(show_password: bool, password: &str) -> Element<'a, Message>
         masked_password(password)
     };
 
+    sensitive_detail_row(
+        "src/icons/key_icon.svg",
+        "Password",
+        display_value,
+        show_password,
+    )
+}
+
+fn card_number_row<'a>(show_number: bool, number: &str) -> Element<'a, Message> {
+    let display_value = if show_number {
+        number.to_owned()
+    } else {
+        masked_card(number)
+    };
+
+    sensitive_detail_row(
+        "src/icons/key_icon.svg",
+        "Number",
+        display_value,
+        show_number,
+    )
+}
+
+fn security_code_row<'a>(show_code: bool, code: &str) -> Element<'a, Message> {
+    let display_value = if show_code {
+        code.to_owned()
+    } else {
+        masked_security_code(code)
+    };
+
+    sensitive_detail_row(
+        "src/icons/key_icon.svg",
+        "Security code",
+        display_value,
+        show_code,
+    )
+}
+
+fn sensitive_detail_row<'a>(
+    icon_path: &'static str,
+    label: &'static str,
+    value: String,
+    is_visible: bool,
+) -> Element<'a, Message> {
     row![
-        svg("src/icons/key_icon.svg")
-            .width(18)
-            .height(18)
-            .style(icon_style),
-        column![text("Password").size(12), text(display_value).size(14)]
+        svg(icon_path).width(18).height(18).style(icon_style),
+        column![text(label).size(12), text(value).size(14)]
             .spacing(2)
             .width(Length::Fill),
         button(
-            svg(if show_password {
+            svg(if is_visible {
                 "src/icons/eye_off_icon.svg"
             } else {
                 "src/icons/eye_icon.svg"
@@ -254,6 +303,12 @@ fn masked_card(number: &str) -> String {
     }
 
     format!("•••• •••• •••• {}", &digits[digits.len() - 4..])
+}
+
+fn masked_security_code(code: &str) -> String {
+    let count = code.chars().count().clamp(3, 4);
+
+    "•".repeat(count)
 }
 
 fn format_timestamp(timestamp: i64) -> String {

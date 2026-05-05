@@ -3,7 +3,7 @@ use iced::{Alignment, Background, Border, Element, Length, Shadow, Theme};
 
 use crate::Message;
 use crate::components::ui::{THEME_CORNER_RADIUS, darken};
-use crate::models::VaultItem;
+use crate::models::{ItemKind, VaultItem};
 
 pub(crate) fn view<'a>(
     items: &'a [VaultItem],
@@ -81,8 +81,8 @@ fn sort_title(item: &VaultItem) -> String {
 }
 
 fn recent_item_card<'a>(item: &'a VaultItem) -> iced::widget::Button<'a, Message> {
-    let title = truncate_link(&item.title, 42);
-    let subtitle = truncate_link(&item.subtitle, 52);
+    let title = truncate_link(&strip_url_scheme(&item.title), 42);
+    let subtitle = truncate_link(&strip_url_scheme(&item.subtitle), 52);
 
     button(
         row![
@@ -127,12 +127,31 @@ fn is_link_like(value: &str) -> bool {
         || value.contains('/')
 }
 
+fn strip_url_scheme(url: &str) -> String {
+    url.strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url)
+        .to_owned()
+}
+
 fn favicon_badge<'a>(item: &'a VaultItem) -> Element<'a, Message> {
     if let Some(path) = &item.favicon_path {
         return container(image(path.as_str()).width(24).height(24))
             .padding([5.0, 6.0])
             .style(favicon_style)
             .into();
+    }
+
+    if item.kind == ItemKind::Card {
+        return container(
+            svg("src/icons/card_icon.svg")
+                .width(24)
+                .height(24)
+                .style(card_icon_style),
+        )
+        .padding([5.0, 6.0])
+        .style(favicon_style)
+        .into();
     }
 
     if item.website_url.is_some() {

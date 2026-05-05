@@ -37,7 +37,7 @@ struct ImportProvider {
     icon_path: &'static str,
 }
 
-pub(crate) fn view<'a>(status_message: Option<&'a str>) -> Element<'a, Message> {
+pub(crate) fn view<'a>(_status_message: Option<&'a str>) -> Element<'a, Message> {
     let first_row = row![
         import_card(IMPORT_PROVIDERS[0]),
         import_card(IMPORT_PROVIDERS[1]),
@@ -59,7 +59,7 @@ pub(crate) fn view<'a>(status_message: Option<&'a str>) -> Element<'a, Message> 
             Space::new().width(48),
             column![
                 text("Import your passwords").size(22),
-                status_text(status_message),
+                text("Upload a .csv file of your passwords").size(14),
                 first_row,
                 second_row
             ]
@@ -73,12 +73,6 @@ pub(crate) fn view<'a>(status_message: Option<&'a str>) -> Element<'a, Message> 
     .width(Length::Fill)
     .height(Length::Fill)
     .into()
-}
-
-fn status_text<'a>(status_message: Option<&'a str>) -> Element<'a, Message> {
-    text(status_message.unwrap_or("Choose the platform you want to import from."))
-        .size(14)
-        .into()
 }
 
 fn import_card<'a>(provider: ImportProvider) -> iced::widget::Button<'a, Message> {

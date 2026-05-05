@@ -1,5 +1,5 @@
 use directories::ProjectDirs;
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::crypto::{self, EncryptedPayload, MasterKey};
@@ -105,6 +105,27 @@ impl Database {
             for item in rows {
                 items.push(self.decrypt_item(item?)?);
             }
+        }
+
+        Ok(items)
+    }
+
+    pub(crate) fn list_items_with_payloads(
+        &self,
+        vault_id: &str,
+    ) -> Result<Vec<VaultItemDetails>, DbError> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, kind, nonce, encrypted_payload, created_at, updated_at
+             FROM items
+             WHERE vault_id = ?1
+               AND deleted_at IS NULL
+             ORDER BY updated_at DESC",
+        )?;
+        let rows = statement.query_map(params![vault_id], item_row)?;
+
+        let mut items = Vec::new();
+        for item in rows {
+            items.push(self.decrypt_item_details(item?)?);
         }
 
         Ok(items)
@@ -509,4 +530,93 @@ fn unix_timestamp() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_secs() as i64)
         .unwrap_or_default()
+}
+
+impl Database {
+    pub(crate) fn change_master_password(
+        &self,
+        old_password: &str,
+        new_password: &str,
+    ) -> Result<(), DbError> {
+        let salt = ensure_salt(&self.connection)?;
+        let old_key = MasterKey::derive(old_password, &salt)?;
+        let password_check = EncryptedPayload {
+            nonce: meta_value(&self.connection, "password_check_nonce")?
+                .ok_or(DbError::MissingPasswordCheck)?,
+            ciphertext: meta_value(&self.connection, "password_check_ciphertext")?
+                .ok_or(DbError::MissingPasswordCheck)?,
+        };
+
+        let password_check = old_key
+            .decrypt(&password_check)
+            .map_err(|error| match error {
+                crypto::CryptoError::Decrypt => DbError::InvalidMasterPassword,
+                error => DbError::Crypto(error),
+            })?;
+
+        if password_check != PASSWORD_CHECK {
+            return Err(DbError::InvalidMasterPassword);
+        }
+
+        let new_key = MasterKey::derive(new_password, &salt)?;
+        let transaction = self.connection.unchecked_transaction()?;
+
+        let items: Vec<(String, Vec<u8>, Vec<u8>)> = {
+            let mut statement =
+                transaction.prepare("SELECT id, nonce, encrypted_payload FROM items")?;
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+
+        for (id, old_nonce, old_ciphertext) in items {
+            let encrypted = EncryptedPayload {
+                nonce: old_nonce,
+                ciphertext: old_ciphertext,
+            };
+            let plaintext = old_key
+                .decrypt(&encrypted)
+                .map_err(|_| DbError::InvalidMasterPassword)?;
+
+            let new_encrypted = new_key.encrypt(&plaintext)?;
+
+            transaction.execute(
+                "UPDATE items SET nonce = ?1, encrypted_payload = ?2 WHERE id = ?3",
+                params![new_encrypted.nonce, new_encrypted.ciphertext, id],
+            )?;
+        }
+
+        let new_encrypted = new_key.encrypt(PASSWORD_CHECK)?;
+        transaction.execute(
+            "UPDATE app_meta SET value = ?1 WHERE key = 'password_check_nonce'",
+            params![new_encrypted.nonce],
+        )?;
+        transaction.execute(
+            "UPDATE app_meta SET value = ?1 WHERE key = 'password_check_ciphertext'",
+            params![new_encrypted.ciphertext],
+        )?;
+        transaction.commit()?;
+
+        Ok(())
+    }
+
+    pub(crate) fn set_auto_lock_duration(&self, duration: i64) -> Result<(), DbError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('auto_lock_duration', ?1)",
+            params![duration.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn get_auto_lock_duration(&self) -> Result<i64, DbError> {
+        let result: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT value FROM app_meta WHERE key = 'auto_lock_duration'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+        Ok(result.and_then(|s| s.parse().ok()).unwrap_or(600))
+    }
 }

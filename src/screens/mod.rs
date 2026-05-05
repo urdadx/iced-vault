@@ -12,6 +12,9 @@ pub(crate) use import::view as import;
 pub(crate) use item_details::view as item_details;
 pub(crate) use master_password::view as master_password;
 pub(crate) use settings::view as settings;
+pub(crate) use settings::{AutoLockDuration, ExportFormat, SettingsViewState};
+
+use crate::components::ui::VaultTheme;
 
 pub(crate) fn placeholder<'a, Message: 'a>(
     title: &'static str,

@@ -1,14 +1,19 @@
 use iced::widget::{Space, container, row, text};
-use iced::{Element, Length, Size, Task, Theme};
+use iced::{Element, Length, Size, Subscription, Task, Theme, event, time};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::components::dialogs::{DialogForms, DialogKind};
 use crate::components::ui::{VaultTheme, load_fonts, p_font};
 use crate::components::{dialogs, sidebar};
 use crate::db::{Database, DbError};
+use crate::export;
 use crate::importers::{ImportFormat, ImportPreview, parse_import};
 use crate::models::{CardPayload, ItemPayload, LoginPayload, Vault, VaultItem, VaultItemDetails};
 use crate::screens;
+use crate::screens::{AutoLockDuration, ExportFormat};
+use directories::ProjectDirs;
+use rusqlite::Connection;
 
 const WINDOW_WIDTH: f32 = 820.0;
 const WINDOW_HEIGHT: f32 = 570.0;
@@ -17,6 +22,7 @@ const SIDEBAR_WIDTH: f32 = 188.0;
 pub(crate) fn run() -> iced::Result {
     let mut app = iced::application(VaultApp::default, VaultApp::update, VaultApp::view)
         .window_size(Size::new(WINDOW_WIDTH, WINDOW_HEIGHT))
+        .subscription(VaultApp::subscription)
         .theme(app_theme)
         .default_font(p_font())
         .centered();
@@ -82,6 +88,15 @@ pub(crate) struct VaultApp {
     status_message: Option<String>,
     loading_message: Option<&'static str>,
     theme: VaultTheme,
+    auto_lock: AutoLockDuration,
+    export_format: ExportFormat,
+    export_passphrase: String,
+    show_export_passphrase: bool,
+    export_path: Option<String>,
+    old_master_password: String,
+    new_master_password: String,
+    confirm_master_password: String,
+    last_activity: std::time::Instant,
 }
 
 impl Default for VaultApp {
@@ -119,6 +134,15 @@ impl Default for VaultApp {
             status_message,
             loading_message: None,
             theme: VaultTheme::default(),
+            auto_lock: AutoLockDuration::default(),
+            export_format: ExportFormat::default(),
+            export_passphrase: String::new(),
+            show_export_passphrase: false,
+            export_path: None,
+            old_master_password: String::new(),
+            new_master_password: String::new(),
+            confirm_master_password: String::new(),
+            last_activity: Instant::now(),
         }
     }
 }
@@ -157,14 +181,30 @@ pub(crate) enum Message {
     PerformDeleteItem,
     CloseDialog,
     ThemePressed,
+    OpenGithub,
     MasterPasswordChanged(String),
     MasterPasswordConfirmationChanged(String),
     UnlockConfirmed,
     OpenItem(String),
     TogglePasswordVisibility,
+    AutoLockChanged(AutoLockDuration),
+    ChangeMasterPasswordPressed,
+    ExportFormatChanged(ExportFormat),
+    ExportPassphraseChanged(String),
+    ToggleShowPassphrase,
+    ExportVault,
+    ExportFilePicked(Option<PathBuf>),
+    ExportCompleted(Option<String>, Result<usize, String>),
+    InstallExtensionPressed,
+    OldMasterPasswordChanged(String),
+    NewMasterPasswordChanged(String),
+    ConfirmMasterPasswordChanged(String),
+    ChangeMasterPasswordConfirmed,
     ImportProviderSelected(&'static str),
     ImportFilePicked(Option<(&'static str, PathBuf)>),
     ImportParsed(Result<ParsedImport, String>),
+    AutoLockTick,
+    UserActivity,
 }
 
 #[derive(Debug, Clone)]
@@ -273,8 +313,138 @@ impl VaultApp {
             }
             Message::PerformLoadItems => self.refresh_items(),
             Message::PerformDeleteItem => self.delete_selected_item(),
-            Message::CloseDialog => self.close_dialog(),
+            Message::CloseDialog => {
+                self.close_dialog();
+                self.last_activity = Instant::now();
+            }
+            Message::UserActivity => self.last_activity = Instant::now(),
             Message::ThemePressed => self.theme = self.theme.toggle(),
+            Message::OpenGithub => {
+                let _ = open::that("https://github.com/urdadx/iced-vault");
+            }
+            Message::AutoLockChanged(duration) => {
+                self.auto_lock = duration;
+                if let Some(db) = &self.database {
+                    let seconds = match duration {
+                        AutoLockDuration::OneMinute => 60,
+                        AutoLockDuration::FiveMinutes => 300,
+                        AutoLockDuration::TenMinutes => 600,
+                        AutoLockDuration::ThirtyMinutes => 1800,
+                        AutoLockDuration::OneHour => 3600,
+                        AutoLockDuration::Never => 0,
+                    };
+                    let _ = db.set_auto_lock_duration(seconds);
+                }
+            }
+            Message::ChangeMasterPasswordPressed => {
+                self.active_dialog = Some(DialogKind::ChangeMasterPassword);
+            }
+            Message::ExportFormatChanged(format) => self.export_format = format,
+            Message::ExportPassphraseChanged(passphrase) => self.export_passphrase = passphrase,
+            Message::ToggleShowPassphrase => {
+                self.show_export_passphrase = !self.show_export_passphrase
+            }
+            Message::ExportVault => {
+                if self.selected_vault_id().is_none() {
+                    self.status_message = Some(String::from("Select a vault first."));
+                    return Task::none();
+                }
+                if self.export_format == ExportFormat::PgpEncrypted
+                    && self.export_passphrase.trim().is_empty()
+                {
+                    self.status_message = Some(String::from("Passphrase required for PGP export."));
+                    return Task::none();
+                }
+                self.status_message = None;
+                self.start_loading("Opening export dialog...");
+                let format = self.export_format;
+                let vault_name = self
+                    .selected_vault
+                    .as_deref()
+                    .unwrap_or("vault")
+                    .to_string();
+                return Task::perform(
+                    pick_export_file(format, vault_name),
+                    Message::ExportFilePicked,
+                );
+            }
+            Message::ExportFilePicked(selection) => match selection {
+                Some(path) => {
+                    self.start_loading("Exporting vault...");
+                    let vault_id = self.selected_vault_id().unwrap().to_owned();
+                    let format = self.export_format;
+                    let passphrase = self.export_passphrase.clone();
+
+                    let result = self.export_vault(&vault_id, format, &passphrase, &path);
+
+                    self.finish_loading();
+                    match result {
+                        Ok(count) => {
+                            self.status_message =
+                                Some(format!("Exported {count} items successfully."));
+                        }
+                        Err(error) => {
+                            self.status_message = Some(error);
+                        }
+                    }
+                }
+                None => {
+                    self.finish_loading();
+                    self.status_message = Some(String::from("Export cancelled."));
+                }
+            },
+            Message::InstallExtensionPressed => {
+                self.status_message = Some(String::from("Browser extension not implemented yet."));
+            }
+            Message::ExportCompleted(_path, result) => {
+                self.finish_loading();
+                match result {
+                    Ok(count) => {
+                        self.status_message = Some(format!("Exported {count} items successfully."));
+                    }
+                    Err(error) => {
+                        self.status_message = Some(error);
+                    }
+                }
+            }
+            Message::OldMasterPasswordChanged(password) => self.old_master_password = password,
+            Message::NewMasterPasswordChanged(password) => self.new_master_password = password,
+            Message::ConfirmMasterPasswordChanged(password) => {
+                self.confirm_master_password = password
+            }
+            Message::ChangeMasterPasswordConfirmed => {
+                if self.new_master_password != self.confirm_master_password {
+                    self.status_message = Some(String::from("Passwords do not match."));
+                } else if self.new_master_password.len() < 8 {
+                    self.status_message =
+                        Some(String::from("Password must be at least 8 characters."));
+                } else {
+                    let result = self
+                        .database
+                        .as_ref()
+                        .ok_or_else(|| String::from("Database not available."))
+                        .and_then(|db| {
+                            db.change_master_password(
+                                &self.old_master_password,
+                                &self.new_master_password,
+                            )
+                            .map_err(|e| e.to_string())
+                        });
+
+                    match result {
+                        Ok(_) => {
+                            self.close_dialog();
+                            self.lock_vault();
+                            self.status_message = Some(String::from(
+                                "Master password changed. Please unlock again.",
+                            ));
+                        }
+                        Err(error) => {
+                            self.status_message = Some(error);
+                        }
+                    }
+                }
+            }
             Message::MasterPasswordChanged(password) => self.master_password = password,
             Message::MasterPasswordConfirmationChanged(password) => {
                 self.master_password_confirmation = password
@@ -311,9 +481,58 @@ impl VaultApp {
             Message::ImportParsed(result) => {
                 self.complete_import(result);
             }
+            Message::AutoLockTick => self.check_auto_lock(),
         }
 
         Task::none()
+    }
+
+    pub(crate) fn subscription(&self) -> Subscription<Message> {
+        if self.database.is_none() {
+            return Subscription::none();
+        }
+
+        let mut subscriptions = vec![event::listen_with(track_user_activity)];
+
+        if self.auto_lock != AutoLockDuration::Never {
+            subscriptions.push(time::every(Duration::from_secs(1)).map(|_| Message::AutoLockTick));
+        }
+
+        Subscription::batch(subscriptions)
+    }
+
+    fn check_auto_lock(&mut self) {
+        if self.database.is_none() {
+            return;
+        }
+
+        if self.auto_lock == AutoLockDuration::Never {
+            self.last_activity = Instant::now();
+            return;
+        }
+
+        let duration = match self.auto_lock {
+            AutoLockDuration::OneMinute => std::time::Duration::from_secs(60),
+            AutoLockDuration::FiveMinutes => std::time::Duration::from_secs(300),
+            AutoLockDuration::TenMinutes => std::time::Duration::from_secs(600),
+            AutoLockDuration::ThirtyMinutes => std::time::Duration::from_secs(1800),
+            AutoLockDuration::OneHour => std::time::Duration::from_secs(3600),
+            AutoLockDuration::Never => return,
+        };
+
+        if Instant::now().duration_since(self.last_activity) >= duration {
+            self.lock_vault();
+        }
+    }
+
+    fn lock_vault(&mut self) {
+        self.database = None;
+        self.vault_records.clear();
+        self.vaults.clear();
+        self.vault_items.clear();
+        self.selected_item = None;
+        self.master_password.clear();
+        self.status_message = Some(String::from("Vault locked due to inactivity."));
     }
 
     pub(crate) fn view(&self) -> Element<'_, Message> {
@@ -348,7 +567,14 @@ impl VaultApp {
                     self.show_password,
                 ),
                 Screen::Import => screens::import(self.status_message.as_deref()),
-                Screen::Settings => screens::settings(),
+                Screen::Settings => screens::settings(screens::SettingsViewState {
+                    current_theme: self.theme,
+                    auto_lock: self.auto_lock,
+                    export_format: self.export_format,
+                    export_passphrase: &self.export_passphrase,
+                    show_passphrase: self.show_export_passphrase,
+                    status_message: self.status_message.as_deref(),
+                }),
             }
         };
 
@@ -397,6 +623,9 @@ impl VaultApp {
                 security_code: &self.security_code,
                 import_result_message: &self.import_result_message,
                 loading_message: self.loading_message,
+                old_master_password: &self.old_master_password,
+                new_master_password: &self.new_master_password,
+                confirm_master_password: &self.confirm_master_password,
             },
         )
     }
@@ -420,6 +649,11 @@ impl VaultApp {
             }
             DialogKind::EditCard => {}
             DialogKind::ImportComplete => {}
+            DialogKind::ChangeMasterPassword => {
+                self.old_master_password.clear();
+                self.new_master_password.clear();
+                self.confirm_master_password.clear();
+            }
         }
     }
 
@@ -437,6 +671,9 @@ impl VaultApp {
         self.card_number.clear();
         self.expiration_date.clear();
         self.security_code.clear();
+        self.old_master_password.clear();
+        self.new_master_password.clear();
+        self.confirm_master_password.clear();
     }
 
     fn complete_import(&mut self, result: Result<ParsedImport, String>) {
@@ -453,6 +690,24 @@ impl VaultApp {
                 self.finish_loading();
             }
         }
+    }
+
+    fn export_vault(
+        &mut self,
+        vault_id: &str,
+        format: ExportFormat,
+        passphrase: &str,
+        path: &Path,
+    ) -> Result<usize, String> {
+        let Some(database) = &self.database else {
+            return Err(String::from("Database is locked."));
+        };
+
+        let items = database
+            .list_items_with_payloads(vault_id)
+            .map_err(format_db_error)?;
+
+        export::export_items(&items, format, passphrase, path)
     }
 
     fn import_preview(&mut self, parsed: ParsedImport) -> Result<usize, String> {
@@ -493,6 +748,8 @@ impl VaultApp {
                 self.status_message = None;
                 self.needs_master_setup = false;
                 self.refresh_vaults();
+                self.load_settings();
+                self.last_activity = Instant::now();
                 self.finish_loading();
             }
             Err(DbError::InvalidMasterPassword) => {
@@ -502,6 +759,22 @@ impl VaultApp {
             Err(error) => {
                 self.status_message = Some(error.to_string());
                 self.finish_loading();
+            }
+        }
+    }
+
+    fn load_settings(&mut self) {
+        if let Some(db) = &self.database {
+            if let Ok(duration) = db.get_auto_lock_duration() {
+                self.auto_lock = match duration {
+                    60 => AutoLockDuration::OneMinute,
+                    300 => AutoLockDuration::FiveMinutes,
+                    600 => AutoLockDuration::TenMinutes,
+                    1800 => AutoLockDuration::ThirtyMinutes,
+                    3600 => AutoLockDuration::OneHour,
+                    0 => AutoLockDuration::Never,
+                    _ => AutoLockDuration::TenMinutes,
+                };
             }
         }
     }
@@ -835,6 +1108,20 @@ fn app_theme(app: &VaultApp) -> Theme {
     app.theme.to_iced_theme()
 }
 
+fn track_user_activity(
+    event: iced::Event,
+    _status: event::Status,
+    _window: iced::window::Id,
+) -> Option<Message> {
+    match event {
+        iced::Event::Keyboard(_)
+        | iced::Event::Mouse(_)
+        | iced::Event::Touch(_)
+        | iced::Event::InputMethod(_) => Some(Message::UserActivity),
+        iced::Event::Window(_) => None,
+    }
+}
+
 fn format_db_error(error: DbError) -> String {
     error.to_string()
 }
@@ -912,4 +1199,37 @@ fn provider_label(provider: &'static str) -> &'static str {
         "safari" => "Safari",
         _ => provider,
     }
+}
+
+async fn pick_export_file(format: ExportFormat, vault_name: String) -> Option<PathBuf> {
+    let (title, ext) = match format {
+        ExportFormat::Csv => ("Export as CSV", "csv"),
+        ExportFormat::Zip => ("Export as ZIP", "zip"),
+        ExportFormat::PgpEncrypted => ("Export as PGP", "txt"),
+    };
+    let file_name = export_file_name(&vault_name, ext);
+
+    rfd::AsyncFileDialog::new()
+        .set_title(title)
+        .add_filter("Export file", &[ext])
+        .set_file_name(&file_name)
+        .save_file()
+        .await
+        .map(|handle| handle.path().to_path_buf())
+}
+
+fn export_file_name(vault_name: &str, ext: &str) -> String {
+    let sanitized = vault_name
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+    let base = if sanitized.is_empty() {
+        "vault"
+    } else {
+        &sanitized
+    };
+
+    format!("{base}.{ext}")
 }

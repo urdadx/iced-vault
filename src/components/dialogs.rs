@@ -15,6 +15,7 @@ pub(crate) enum DialogKind {
     NewCard,
     EditCard,
     ImportComplete,
+    ChangeMasterPassword,
 }
 
 pub(crate) struct DialogForms<'a> {
@@ -28,6 +29,9 @@ pub(crate) struct DialogForms<'a> {
     pub(crate) security_code: &'a str,
     pub(crate) import_result_message: &'a str,
     pub(crate) loading_message: Option<&'a str>,
+    pub(crate) old_master_password: &'a str,
+    pub(crate) new_master_password: &'a str,
+    pub(crate) confirm_master_password: &'a str,
 }
 
 pub(crate) fn wrap<'a>(
@@ -119,6 +123,33 @@ pub(crate) fn wrap<'a>(
                     } else {
                         Message::CreateCardConfirmed
                     },
+                    forms.loading_message,
+                )
+            ]
+            .spacing(12)
+            .width(Length::Fill)
+            .into(),
+        ),
+        DialogKind::ChangeMasterPassword => (
+            "Change Master Password",
+            column![
+                text("Current master password").size(14),
+                input("Current master password", forms.old_master_password)
+                    .secure(true)
+                    .on_input(Message::OldMasterPasswordChanged),
+                text("New master password").size(14),
+                input("New master password", forms.new_master_password)
+                    .secure(true)
+                    .on_input(Message::NewMasterPasswordChanged),
+                text("Confirm new password").size(14),
+                input("Confirm new password", forms.confirm_master_password)
+                    .secure(true)
+                    .on_input(Message::ConfirmMasterPasswordChanged),
+                submit_button(
+                    !forms.old_master_password.is_empty()
+                        && !forms.new_master_password.is_empty()
+                        && forms.new_master_password == forms.confirm_master_password,
+                    Message::ChangeMasterPasswordConfirmed,
                     forms.loading_message,
                 )
             ]

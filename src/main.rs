@@ -2,6 +2,7 @@ mod app;
 mod components;
 mod crypto;
 mod db;
+mod export;
 mod favicon;
 #[allow(dead_code)]
 mod importers;

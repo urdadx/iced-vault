@@ -1,4 +1,4 @@
-use iced::widget::{Space, button, column, container, pick_list, row, svg, text};
+use iced::widget::{button, column, container, pick_list, row, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Shadow, Theme};
 
 use crate::components::ui::{
@@ -10,7 +10,7 @@ pub(crate) fn view<'a>(
     vaults: &'a [String],
     selected_vault: Option<&'a String>,
     active_screen: Screen,
-    theme: VaultTheme,
+    _theme: VaultTheme,
 ) -> Element<'a, Message> {
     column![
         container(
@@ -48,18 +48,18 @@ pub(crate) fn view<'a>(
         container(
             button(
                 row![
-                    svg(theme_icon_path(theme))
+                    svg("src/icons/BiGithub.svg")
                         .width(16)
                         .height(16)
                         .style(theme_icon_style),
-                    text(format!("Theme: {}", theme.label())).size(14)
+                    text("Star on Github").size(14)
                 ]
                 .spacing(ButtonSize::Sm.gap())
             )
             .padding(ButtonSize::Sm.padding())
             .width(Length::Fill)
             .style(button_style(ButtonVariant::Ghost))
-            .on_press(Message::ThemePressed)
+            .on_press(Message::OpenGithub)
         )
         .padding([10.0, 10.0])
         .width(Length::Fill)
