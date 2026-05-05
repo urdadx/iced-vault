@@ -21,7 +21,11 @@ const SIDEBAR_WIDTH: f32 = 188.0;
 
 pub(crate) fn run() -> iced::Result {
     let mut app = iced::application(VaultApp::default, VaultApp::update, VaultApp::view)
-        .window_size(Size::new(WINDOW_WIDTH, WINDOW_HEIGHT))
+        .window(iced::window::Settings {
+            size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+            icon: app_icon(),
+            ..Default::default()
+        })
         .subscription(VaultApp::subscription)
         .theme(app_theme)
         .default_font(p_font())
@@ -32,6 +36,10 @@ pub(crate) fn run() -> iced::Result {
     }
 
     app.run()
+}
+
+fn app_icon() -> Option<iced::window::Icon> {
+    iced::window::icon::from_file_data(include_bytes!("icons/app_icon.png"), None).ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -90,8 +98,6 @@ pub(crate) struct VaultApp {
     theme: VaultTheme,
     auto_lock: AutoLockDuration,
     export_format: ExportFormat,
-    export_passphrase: String,
-    show_export_passphrase: bool,
     export_path: Option<String>,
     old_master_password: String,
     new_master_password: String,
@@ -136,8 +142,6 @@ impl Default for VaultApp {
             theme: VaultTheme::default(),
             auto_lock: AutoLockDuration::default(),
             export_format: ExportFormat::default(),
-            export_passphrase: String::new(),
-            show_export_passphrase: false,
             export_path: None,
             old_master_password: String::new(),
             new_master_password: String::new(),
@@ -190,8 +194,6 @@ pub(crate) enum Message {
     AutoLockChanged(AutoLockDuration),
     ChangeMasterPasswordPressed,
     ExportFormatChanged(ExportFormat),
-    ExportPassphraseChanged(String),
-    ToggleShowPassphrase,
     ExportVault,
     ExportFilePicked(Option<PathBuf>),
     ExportCompleted(Option<String>, Result<usize, String>),
@@ -340,19 +342,9 @@ impl VaultApp {
                 self.active_dialog = Some(DialogKind::ChangeMasterPassword);
             }
             Message::ExportFormatChanged(format) => self.export_format = format,
-            Message::ExportPassphraseChanged(passphrase) => self.export_passphrase = passphrase,
-            Message::ToggleShowPassphrase => {
-                self.show_export_passphrase = !self.show_export_passphrase
-            }
             Message::ExportVault => {
                 if self.selected_vault_id().is_none() {
                     self.status_message = Some(String::from("Select a vault first."));
-                    return Task::none();
-                }
-                if self.export_format == ExportFormat::PgpEncrypted
-                    && self.export_passphrase.trim().is_empty()
-                {
-                    self.status_message = Some(String::from("Passphrase required for PGP export."));
                     return Task::none();
                 }
                 self.status_message = None;
@@ -373,9 +365,8 @@ impl VaultApp {
                     self.start_loading("Exporting vault...");
                     let vault_id = self.selected_vault_id().unwrap().to_owned();
                     let format = self.export_format;
-                    let passphrase = self.export_passphrase.clone();
 
-                    let result = self.export_vault(&vault_id, format, &passphrase, &path);
+                    let result = self.export_vault(&vault_id, format, &path);
 
                     self.finish_loading();
                     match result {
@@ -571,8 +562,6 @@ impl VaultApp {
                     current_theme: self.theme,
                     auto_lock: self.auto_lock,
                     export_format: self.export_format,
-                    export_passphrase: &self.export_passphrase,
-                    show_passphrase: self.show_export_passphrase,
                     status_message: self.status_message.as_deref(),
                 }),
             }
@@ -696,7 +685,6 @@ impl VaultApp {
         &mut self,
         vault_id: &str,
         format: ExportFormat,
-        passphrase: &str,
         path: &Path,
     ) -> Result<usize, String> {
         let Some(database) = &self.database else {
@@ -707,7 +695,7 @@ impl VaultApp {
             .list_items_with_payloads(vault_id)
             .map_err(format_db_error)?;
 
-        export::export_items(&items, format, passphrase, path)
+        export::export_items(&items, format, path)
     }
 
     fn import_preview(&mut self, parsed: ParsedImport) -> Result<usize, String> {
@@ -1205,7 +1193,6 @@ async fn pick_export_file(format: ExportFormat, vault_name: String) -> Option<Pa
     let (title, ext) = match format {
         ExportFormat::Csv => ("Export as CSV", "csv"),
         ExportFormat::Zip => ("Export as ZIP", "zip"),
-        ExportFormat::PgpEncrypted => ("Export as PGP", "txt"),
     };
     let file_name = export_file_name(&vault_name, ext);
 

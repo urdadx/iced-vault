@@ -9,13 +9,11 @@ const CSV_HEADER: [&str; 6] = ["name", "username", "password", "url", "notes", "
 pub(crate) fn export_items(
     items: &[VaultItemDetails],
     format: ExportFormat,
-    passphrase: &str,
     path: &Path,
 ) -> Result<usize, String> {
     match format {
         ExportFormat::Csv => write_csv_export(items, path)?,
         ExportFormat::Zip => write_zip_export(items, path)?,
-        ExportFormat::PgpEncrypted => write_pgp_export(items, passphrase, path)?,
     }
 
     Ok(items.len())
@@ -38,18 +36,6 @@ fn write_zip_export(items: &[VaultItemDetails], path: &Path) -> Result<(), Strin
     zip.finish().map_err(|error| error.to_string())?;
 
     Ok(())
-}
-
-fn write_pgp_export(
-    items: &[VaultItemDetails],
-    passphrase: &str,
-    path: &Path,
-) -> Result<(), String> {
-    if passphrase.is_empty() {
-        return Err(String::from("Passphrase required for PGP export"));
-    }
-
-    std::fs::write(path, render_pgp_text(items)).map_err(|error| error.to_string())
 }
 
 fn render_csv(items: &[VaultItemDetails]) -> Result<Vec<u8>, String> {
@@ -89,35 +75,4 @@ fn write_csv_record(
         ]),
     }
     .map_err(|error| error.to_string())
-}
-
-fn render_pgp_text(items: &[VaultItemDetails]) -> String {
-    let mut content = String::new();
-
-    for item in items {
-        match &item.payload {
-            ItemPayload::Login(login) => {
-                content.push_str(&format!(
-                    "name: {}\nusername: {}\npassword: {}\nurl: {}\nnotes: {}\n\n",
-                    login.name,
-                    login.username,
-                    login.password,
-                    login.urls.first().map(String::as_str).unwrap_or_default(),
-                    login.notes
-                ));
-            }
-            ItemPayload::Card(card) => {
-                content.push_str(&format!(
-                    "cardholder: {}\nnumber: {}\nexpiry: {}\ncode: {}\nnotes: {}\n\n",
-                    card.cardholder_name,
-                    card.number,
-                    card.expiration_date,
-                    card.security_code,
-                    card.notes
-                ));
-            }
-        }
-    }
-
-    content
 }

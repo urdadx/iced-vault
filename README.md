@@ -1,4 +1,4 @@
-# iced-vault
+# iced vault
 
 `iced-vault` is a local desktop password manager built with Rust and `iced`.
 It stores vault data in a local SQLite database and encrypts item payloads at rest with a master-password-derived key.

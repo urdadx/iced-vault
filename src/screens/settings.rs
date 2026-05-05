@@ -1,5 +1,5 @@
 use iced::widget::{
-    Space, button, column, container, pick_list, radio, row, scrollable, svg, text, text_input,
+    Space, button, column, container, pick_list, radio, row, scrollable, svg, text,
 };
 use iced::{Alignment, Background, Border, Element, Length, Shadow, Theme};
 
@@ -48,7 +48,6 @@ impl std::fmt::Display for AutoLockDuration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExportFormat {
     #[default]
-    PgpEncrypted,
     Zip,
     Csv,
 }
@@ -62,9 +61,6 @@ pub struct SettingsViewState<'a> {
     pub current_theme: VaultTheme,
     pub auto_lock: AutoLockDuration,
     pub export_format: ExportFormat,
-    /// Passphrase field value (only relevant when format == PgpEncrypted)
-    pub export_passphrase: &'a str,
-    pub show_passphrase: bool,
     pub status_message: Option<&'a str>,
 }
 
@@ -73,8 +69,6 @@ pub(crate) fn view<'a>(state: SettingsViewState<'a>) -> Element<'a, Message> {
         current_theme,
         auto_lock,
         export_format,
-        export_passphrase,
-        show_passphrase,
         status_message,
     } = state;
 
@@ -141,7 +135,7 @@ pub(crate) fn view<'a>(state: SettingsViewState<'a>) -> Element<'a, Message> {
                     settings_section(
                         "Data Management",
                         "Export your vault data or manage your local database.",
-                        export_section(export_format, export_passphrase, show_passphrase),
+                        export_section(export_format),
                     ),
                     Space::new().height(24),
                     // ── About ─────────────────────────────────────────────────────
@@ -177,67 +171,16 @@ pub(crate) fn view<'a>(state: SettingsViewState<'a>) -> Element<'a, Message> {
 // Export sub-section
 // ---------------------------------------------------------------------------
 
-fn export_section<'a>(
-    format: ExportFormat,
-    passphrase: &'a str,
-    show_passphrase: bool,
-) -> impl Into<Element<'a, Message>> {
-    let pgp_selected = format == ExportFormat::PgpEncrypted;
-    let needs_passphrase = pgp_selected;
-    let has_passphrase = !passphrase.trim().is_empty();
-    let can_export = !needs_passphrase || has_passphrase;
+fn export_section<'a>(format: ExportFormat) -> impl Into<Element<'a, Message>> {
     let export_label = match format {
-        ExportFormat::PgpEncrypted => "Export PGP",
         ExportFormat::Zip => "Export ZIP",
         ExportFormat::Csv => "Export CSV",
-    };
-
-    let passphrase_group = if needs_passphrase {
-        column![
-            horizontal_rule(),
-            text("Passphrase").size(14),
-            text("The exported file will be encrypted using PGP and requires a strong passphrase.")
-                .size(12)
-                .color([0.5, 0.5, 0.5]),
-            row![
-                text_input("Enter passphrase", passphrase)
-                    .on_input(Message::ExportPassphraseChanged)
-                    .padding([8, 12])
-                    .width(Length::Fill)
-                    .style(text_input_style),
-                Space::new().width(8),
-                button(
-                    svg(if show_passphrase {
-                        "src/icons/eye_off_icon.svg"
-                    } else {
-                        "src/icons/eye_icon.svg"
-                    })
-                    .width(16)
-                    .height(16),
-                )
-                .padding([8, 10])
-                .style(button_style(ButtonVariant::Default))
-                .on_press(Message::ToggleShowPassphrase),
-            ]
-            .align_y(Alignment::Center),
-        ]
-        .spacing(8)
-    } else {
-        column![]
     };
 
     column![
         // File format label
         text("File format").size(14),
         // Radio buttons
-        radio(
-            "PGP-encrypted (recommended)",
-            ExportFormat::PgpEncrypted,
-            Some(format),
-            Message::ExportFormatChanged,
-        )
-        .size(14)
-        .spacing(8),
         radio(
             "ZIP",
             ExportFormat::Zip,
@@ -254,10 +197,8 @@ fn export_section<'a>(
         )
         .size(14)
         .spacing(8),
-        // Conditional passphrase input
-        passphrase_group,
         horizontal_rule(),
-        // Export button — full width, disabled when passphrase required but empty
+        // Export button
         button(
             container(text(export_label).size(13))
                 .width(Length::Fill)
@@ -265,11 +206,7 @@ fn export_section<'a>(
         )
         .width(Length::Fill)
         .padding([10, 16])
-        .style(button_style(if can_export {
-            ButtonVariant::Default
-        } else {
-            ButtonVariant::Secondary
-        }))
+        .style(button_style(ButtonVariant::Default))
         .on_press(Message::ExportVault),
     ]
     .spacing(10)
@@ -363,27 +300,6 @@ fn section_container_style(theme: &Theme) -> container::Style {
         },
         shadow: Shadow::default(),
         ..Default::default()
-    }
-}
-
-fn text_input_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
-    let palette = theme.palette();
-    let base_bg = darken(palette.background, 0.04);
-
-    text_input::Style {
-        background: Background::Color(base_bg),
-        border: Border {
-            radius: THEME_CORNER_RADIUS.into(),
-            width: 1.0,
-            color: match status {
-                text_input::Status::Focused { .. } => palette.primary,
-                _ => darken(palette.background, 0.12),
-            },
-        },
-        icon: palette.text.scale_alpha(0.5),
-        placeholder: palette.text.scale_alpha(0.4),
-        value: palette.text,
-        selection: palette.primary.scale_alpha(0.3),
     }
 }
 
