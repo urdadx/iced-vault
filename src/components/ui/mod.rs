@@ -14,8 +14,6 @@ pub use picklist::s_pick_list;
 
 pub const THEME_CORNER_RADIUS: f32 = 4.0;
 pub const THEME_FONT_SIZE: f32 = 12.0;
-pub const THEME_PADDING: f32 = 9.0;
-pub const THEME_ICON_SIZE: f32 = 12.0;
 pub const POP_BLUE: Color = color!(0x48b9c7);
 
 #[allow(unused)]
@@ -68,7 +66,7 @@ impl VaultTheme {
                 text: color!(0x3a3131),
                 primary: POP_BLUE,
                 success: color!(0xd9a6b3),
-                danger: color!(0xe78a8a),
+                danger: color!(0xff0000),
                 warning: color!(0xf4b8c4),
             },
         )
@@ -78,10 +76,10 @@ impl VaultTheme {
         Theme::custom(
             "Vault Dark".to_string(),
             iced::theme::Palette {
-                background: color!(0x242424),
-                text: color!(0xf2f2f2),
+                background: color!(0x2b2d31),
+                text: color!(0xf5f5f5),
                 primary: POP_BLUE,
-                success: color!(0x4b5358),
+                success: color!(0x596168),
                 danger: color!(0xf28b82),
                 warning: color!(0xe5c07b),
             },

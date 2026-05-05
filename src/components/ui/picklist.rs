@@ -10,9 +10,14 @@ pub fn s_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list::Style
     let placeholder = palette.text.scale_alpha(0.55);
 
     match status {
-        pick_list::Status::Active => {
-            style(palette.background, border, 1.0, palette.text, placeholder, placeholder)
-        }
+        pick_list::Status::Active => style(
+            palette.background,
+            border,
+            1.0,
+            palette.text,
+            placeholder,
+            placeholder,
+        ),
         pick_list::Status::Hovered => style(
             darken(palette.background, 0.02),
             darken(border, 0.05),
