@@ -81,7 +81,4 @@ cargo check
 - `rfd` for native file dialogs
 
 ## Current Limitations
-
-- The UI exposes a `PGP-encrypted` export option, but the current implementation is not actual PGP encryption yet
-- Browser extension integration is not implemented yet
 - This project is local-first and does not include sync, sharing, or cloud backup
