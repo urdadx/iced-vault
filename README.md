@@ -14,6 +14,13 @@ It stores vault data in a local SQLite database and encrypts item payloads at re
 - Master password rotation
 - Light and dark theme toggle
 
+## Demo
+
+
+https://github.com/user-attachments/assets/775966af-8b87-40c6-8dd7-214febc15857
+
+
+
 ## Security Notes
 
 - Vault data is encrypted at rest using `ChaCha20-Poly1305`
