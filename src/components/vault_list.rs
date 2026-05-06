@@ -2,6 +2,7 @@ use iced::widget::{Space, button, column, container, image, row, scrollable, svg
 use iced::{Alignment, Background, Border, Element, Length, Shadow, Theme};
 
 use crate::Message;
+use crate::assets::SvgAsset;
 use crate::components::ui::{THEME_CORNER_RADIUS, darken};
 use crate::models::{ItemKind, VaultItem};
 
@@ -51,7 +52,7 @@ fn empty_state<'a>() -> Element<'a, Message> {
     container(
         column![
             Space::new().height(Length::Fill),
-            svg("src/icons/browse_icon.svg").width(96).height(96),
+            svg(SvgAsset::Browse.handle()).width(96).height(96),
             text("No items added yet.").size(16),
             Space::new().height(Length::Fill),
         ]
@@ -93,7 +94,7 @@ fn recent_item_card<'a>(item: &'a VaultItem) -> iced::widget::Button<'a, Message
             ]
             .spacing(2)
             .width(Length::Fill),
-            svg("src/icons/chevron_right.svg")
+            svg(SvgAsset::ChevronRight.handle())
                 .width(16)
                 .height(16)
                 .style(card_icon_style)
@@ -144,7 +145,7 @@ fn favicon_badge<'a>(item: &'a VaultItem) -> Element<'a, Message> {
 
     if item.kind == ItemKind::Card {
         return container(
-            svg("src/icons/card_icon.svg")
+            svg(SvgAsset::Card.handle())
                 .width(24)
                 .height(24)
                 .style(card_icon_style),
@@ -156,7 +157,7 @@ fn favicon_badge<'a>(item: &'a VaultItem) -> Element<'a, Message> {
 
     if item.website_url.is_some() {
         return container(
-            svg("src/icons/globe.svg")
+            svg(SvgAsset::Globe.handle())
                 .width(24)
                 .height(24)
                 .style(card_icon_style),

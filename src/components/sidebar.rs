@@ -1,6 +1,7 @@
-use iced::widget::{button, column, container, pick_list, row, svg, text, Space};
+use iced::widget::{Space, button, column, container, pick_list, row, svg, text};
 use iced::{Background, Border, Color, Element, Length, Shadow, Theme};
 
+use crate::assets::SvgAsset;
 use crate::components::ui::{
     ButtonSize, ButtonVariant, THEME_CORNER_RADIUS, VaultTheme, button_style, darken, s_pick_list,
 };
@@ -22,7 +23,7 @@ pub(crate) fn view<'a>(
                     .width(Length::Fill)
                     .style(s_pick_list),
                 button(
-                    svg("src/icons/plus_icon.svg")
+                    svg(SvgAsset::Plus.handle())
                         .width(16)
                         .height(16)
                         .style(theme_icon_style)
@@ -48,7 +49,7 @@ pub(crate) fn view<'a>(
         container(
             button(
                 row![
-                    svg("src/icons/BiGithub.svg")
+                    svg(SvgAsset::Github.handle())
                         .width(16)
                         .height(16)
                         .style(theme_icon_style),
@@ -82,7 +83,7 @@ fn nav_button<'a>(active_screen: Screen, screen: Screen) -> iced::widget::Button
 
     button(
         row![
-            svg(screen.icon_path())
+            svg(screen.icon())
                 .width(16)
                 .height(16)
                 .style(nav_icon_style(is_active)),
@@ -94,13 +95,6 @@ fn nav_button<'a>(active_screen: Screen, screen: Screen) -> iced::widget::Button
     .width(Length::Fill)
     .style(nav_button_style(is_active))
     .on_press(Message::Navigate(screen))
-}
-
-fn theme_icon_path(theme: VaultTheme) -> &'static str {
-    match theme {
-        VaultTheme::VaultLight => "src/icons/light_mode.svg",
-        VaultTheme::VaultDark => "src/icons/dark_mode.svg",
-    }
 }
 
 fn nav_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style + Copy {

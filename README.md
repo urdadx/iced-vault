@@ -9,7 +9,7 @@ It stores vault data in a local SQLite database and encrypts item payloads at re
 - Encrypted storage for login and card items
 - Vault browsing and item detail views
 - Import support for Bitwarden, Chrome, Edge, 1Password, Proton, and Safari exports
-- Export support for CSV, ZIP, and the current PGP-labeled export flow in Settings
+- Export support for CSV and ZIP
 - Auto-lock with configurable timeout
 - Master password rotation
 - Light and dark theme toggle
@@ -52,7 +52,6 @@ Imported items currently map to these local item types:
 
 - CSV
 - ZIP containing a CSV export
-- A text export path exposed in the UI as `PGP-encrypted`
 
 ## Running Locally
 
@@ -72,6 +71,34 @@ Check the project builds:
 cargo check
 ```
 
+## Packaging
+
+Install the packaging tool used for Linux AppImage and macOS bundles:
+
+```bash
+cargo install cargo-packager --locked
+```
+
+Build a Linux AppImage:
+
+```bash
+scripts/package-linux.sh
+```
+
+Build a macOS app bundle and DMG:
+
+```bash
+scripts/package-macos.sh
+```
+
+Build a Windows executable from PowerShell:
+
+```powershell
+./scripts/package-windows.ps1
+```
+
+Release artifacts are written to `dist/`.
+
 ## Tech Stack
 
 - Rust
@@ -81,4 +108,5 @@ cargo check
 - `rfd` for native file dialogs
 
 ## Current Limitations
+
 - This project is local-first and does not include sync, sharing, or cloud backup

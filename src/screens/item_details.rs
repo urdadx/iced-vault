@@ -3,6 +3,7 @@ use iced::widget::{Space, button, column, container, image, row, scrollable, svg
 use iced::{Alignment, Background, Border, Color, Element, Length, Shadow, Theme};
 
 use crate::Message;
+use crate::assets::SvgAsset;
 use crate::components::ui::{ButtonSize, ButtonVariant, THEME_CORNER_RADIUS, button_style};
 use crate::models::{ItemKind, ItemPayload, VaultItemDetails};
 
@@ -14,7 +15,7 @@ pub(crate) fn view(item: &VaultItemDetails, show_password: bool) -> Element<'_, 
             row![
                 button(
                     row![
-                        svg("src/icons/back_icon.svg")
+                        svg(SvgAsset::Back.handle())
                             .width(16)
                             .height(16)
                             .style(icon_style),
@@ -38,7 +39,7 @@ pub(crate) fn view(item: &VaultItemDetails, show_password: bool) -> Element<'_, 
                     .on_press(Message::EditSelectedItem),
                 button(
                     row![
-                        svg("src/icons/trash_icon.svg")
+                        svg(SvgAsset::Trash.handle())
                             .width(16)
                             .height(16)
                             .style(icon_style),
@@ -73,7 +74,7 @@ fn header_icon<'a>(item: &'a VaultItemDetails) -> Element<'a, Message> {
 
     if item.kind == ItemKind::Card {
         return container(
-            svg("src/icons/card_icon.svg")
+            svg(SvgAsset::Card.handle())
                 .width(20)
                 .height(20)
                 .style(icon_style),
@@ -84,7 +85,7 @@ fn header_icon<'a>(item: &'a VaultItemDetails) -> Element<'a, Message> {
     }
 
     container(
-        svg("src/icons/globe.svg")
+        svg(SvgAsset::Globe.handle())
             .width(20)
             .height(20)
             .style(icon_style),
@@ -98,21 +99,17 @@ fn details_body(item: &VaultItemDetails, show_password: bool) -> Element<'_, Mes
     match &item.payload {
         ItemPayload::Login(login) => column![
             section_card(column![
-                detail_row("src/icons/letter_icon.svg", "Email", login.username.clone()),
+                detail_row(SvgAsset::Letter, "Email", login.username.clone()),
                 password_row(show_password, &login.password),
             ]),
             section_card(column![website_row(
-                "src/icons/globe.svg",
+                SvgAsset::Globe,
                 truncate_text(&item.website_url.clone().unwrap_or_default(), 68),
             )]),
             section_card(column![
+                detail_row(SvgAsset::Zap, "Created", format_timestamp(item.created_at)),
                 detail_row(
-                    "src/icons/zap_icon.svg",
-                    "Created",
-                    format_timestamp(item.created_at)
-                ),
-                detail_row(
-                    "src/icons/pencil_icon.svg",
+                    SvgAsset::Pencil,
                     "Last modified",
                     format_timestamp(item.updated_at),
                 ),
@@ -122,27 +119,15 @@ fn details_body(item: &VaultItemDetails, show_password: bool) -> Element<'_, Mes
         .into(),
         ItemPayload::Card(card) => column![
             section_card(column![
-                detail_row(
-                    "src/icons/letter_icon.svg",
-                    "Cardholder",
-                    card.cardholder_name.clone()
-                ),
+                detail_row(SvgAsset::Letter, "Cardholder", card.cardholder_name.clone()),
                 card_number_row(show_password, &card.number),
-                detail_row(
-                    "src/icons/pencil_icon.svg",
-                    "Expiration",
-                    card.expiration_date.clone()
-                ),
+                detail_row(SvgAsset::Pencil, "Expiration", card.expiration_date.clone()),
                 security_code_row(show_password, &card.security_code),
             ]),
             section_card(column![
+                detail_row(SvgAsset::Zap, "Created", format_timestamp(item.created_at)),
                 detail_row(
-                    "src/icons/zap_icon.svg",
-                    "Created",
-                    format_timestamp(item.created_at)
-                ),
-                detail_row(
-                    "src/icons/pencil_icon.svg",
+                    SvgAsset::Pencil,
                     "Last modified",
                     format_timestamp(item.updated_at),
                 ),
@@ -161,13 +146,9 @@ fn section_card<'a>(content: iced::widget::Column<'a, Message>) -> Element<'a, M
         .into()
 }
 
-fn detail_row<'a>(
-    icon_path: &'static str,
-    label: &'static str,
-    value: String,
-) -> Element<'a, Message> {
+fn detail_row<'a>(icon: SvgAsset, label: &'static str, value: String) -> Element<'a, Message> {
     row![
-        svg(icon_path).width(18).height(18).style(icon_style),
+        svg(icon.handle()).width(18).height(18).style(icon_style),
         column![
             text(label).size(12),
             text(value).size(14).width(Length::Fill)
@@ -189,12 +170,7 @@ fn password_row<'a>(show_password: bool, password: &str) -> Element<'a, Message>
         masked_password(password)
     };
 
-    sensitive_detail_row(
-        "src/icons/key_icon.svg",
-        "Password",
-        display_value,
-        show_password,
-    )
+    sensitive_detail_row(SvgAsset::Key, "Password", display_value, show_password)
 }
 
 fn card_number_row<'a>(show_number: bool, number: &str) -> Element<'a, Message> {
@@ -204,12 +180,7 @@ fn card_number_row<'a>(show_number: bool, number: &str) -> Element<'a, Message> 
         masked_card(number)
     };
 
-    sensitive_detail_row(
-        "src/icons/key_icon.svg",
-        "Number",
-        display_value,
-        show_number,
-    )
+    sensitive_detail_row(SvgAsset::Key, "Number", display_value, show_number)
 }
 
 fn security_code_row<'a>(show_code: bool, code: &str) -> Element<'a, Message> {
@@ -219,30 +190,25 @@ fn security_code_row<'a>(show_code: bool, code: &str) -> Element<'a, Message> {
         masked_security_code(code)
     };
 
-    sensitive_detail_row(
-        "src/icons/key_icon.svg",
-        "Security code",
-        display_value,
-        show_code,
-    )
+    sensitive_detail_row(SvgAsset::Key, "Security code", display_value, show_code)
 }
 
 fn sensitive_detail_row<'a>(
-    icon_path: &'static str,
+    icon: SvgAsset,
     label: &'static str,
     value: String,
     is_visible: bool,
 ) -> Element<'a, Message> {
     row![
-        svg(icon_path).width(18).height(18).style(icon_style),
+        svg(icon.handle()).width(18).height(18).style(icon_style),
         column![text(label).size(12), text(value).size(14)]
             .spacing(2)
             .width(Length::Fill),
         button(
             svg(if is_visible {
-                "src/icons/eye_off_icon.svg"
+                SvgAsset::EyeOff.handle()
             } else {
-                "src/icons/eye_icon.svg"
+                SvgAsset::Eye.handle()
             })
             .width(16)
             .height(16)
@@ -259,9 +225,9 @@ fn sensitive_detail_row<'a>(
     .into()
 }
 
-fn website_row<'a>(icon_path: &'static str, value: String) -> Element<'a, Message> {
+fn website_row<'a>(icon: SvgAsset, value: String) -> Element<'a, Message> {
     row![
-        svg(icon_path).width(18).height(18).style(icon_style),
+        svg(icon.handle()).width(18).height(18).style(icon_style),
         text(value).size(14).width(Length::Fill),
     ]
     .spacing(12)

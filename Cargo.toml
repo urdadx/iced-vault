@@ -21,3 +21,20 @@ serde_json = "1"
 ureq = "2"
 url = "2"
 uuid = { version = "1", features = ["v4"] }
+
+[package.metadata.packager]
+product-name = "Iced Vault"
+identifier = "dev.urdadx.iced-vault"
+description = "Local desktop password manager built with Rust and iced."
+homepage = "https://github.com/urdadx/iced-vault"
+category = "Utility"
+icons = ["src/icons/app_icon.png"]
+before-packaging-command = "cargo build --release"
+out-dir = "dist"
+binaries-dir = "target/release"
+
+[package.metadata.packager.linux]
+generate-desktop-entry = true
+
+[package.metadata.packager.appimage]
+bins = ["/usr/bin/xdg-open"]

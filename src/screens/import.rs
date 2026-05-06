@@ -2,39 +2,40 @@ use iced::widget::{Space, button, column, image, row, text};
 use iced::{Alignment, Background, Border, Element, Length, Shadow, Theme};
 
 use crate::Message;
+use crate::assets::ImageAsset;
 use crate::components::ui::{THEME_CORNER_RADIUS, darken};
 
 const IMPORT_PROVIDERS: [ImportProvider; 6] = [
     ImportProvider {
         label: "Bitwarden",
-        icon_path: "src/icons/icons8-bitwarden-48.png",
+        icon: ImageAsset::Bitwarden,
     },
     ImportProvider {
         label: "Chrome",
-        icon_path: "src/icons/icons8-chrome-48.png",
+        icon: ImageAsset::Chrome,
     },
     ImportProvider {
         label: "Edge",
-        icon_path: "src/icons/icons8-edge-48.png",
+        icon: ImageAsset::Edge,
     },
     ImportProvider {
         label: "1Password",
-        icon_path: "src/icons/1Password_icon.png",
+        icon: ImageAsset::OnePassword,
     },
     ImportProvider {
         label: "Proton",
-        icon_path: "src/icons/proton.png",
+        icon: ImageAsset::Proton,
     },
     ImportProvider {
         label: "Safari",
-        icon_path: "src/icons/safari.png",
+        icon: ImageAsset::Safari,
     },
 ];
 
 #[derive(Debug, Clone, Copy)]
 struct ImportProvider {
     label: &'static str,
-    icon_path: &'static str,
+    icon: ImageAsset,
 }
 
 pub(crate) fn view<'a>(_status_message: Option<&'a str>) -> Element<'a, Message> {
@@ -59,7 +60,7 @@ pub(crate) fn view<'a>(_status_message: Option<&'a str>) -> Element<'a, Message>
             Space::new().width(48),
             column![
                 text("Import your passwords").size(22),
-                text("Upload a .csv file of your passwords").size(14),
+                text("Upload a .csv or .json file of your passwords").size(14),
                 first_row,
                 second_row
             ]
@@ -78,7 +79,7 @@ pub(crate) fn view<'a>(_status_message: Option<&'a str>) -> Element<'a, Message>
 fn import_card<'a>(provider: ImportProvider) -> iced::widget::Button<'a, Message> {
     button(
         column![
-            image(provider.icon_path).width(48).height(48),
+            image(provider.icon.handle()).width(48).height(48),
             text(provider.label).size(16),
         ]
         .spacing(14)

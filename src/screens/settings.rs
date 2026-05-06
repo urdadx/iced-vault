@@ -4,6 +4,7 @@ use iced::widget::{
 use iced::{Alignment, Background, Border, Element, Length, Shadow, Theme};
 
 use crate::Message;
+use crate::assets::SvgAsset;
 use crate::components::ui::{ButtonVariant, THEME_CORNER_RADIUS, VaultTheme, button_style, darken};
 
 // ---------------------------------------------------------------------------
@@ -237,15 +238,15 @@ fn settings_section<'a>(
 }
 
 fn theme_toggle<'a>(current_theme: VaultTheme) -> Element<'a, Message> {
-    let (label, icon_path) = if current_theme == VaultTheme::VaultDark {
-        ("Dark Mode", "src/icons/dark_mode.svg")
+    let (label, icon) = if current_theme == VaultTheme::VaultDark {
+        ("Dark Mode", SvgAsset::DarkMode.handle())
     } else {
-        ("Light Mode", "src/icons/light_mode.svg")
+        ("Light Mode", SvgAsset::LightMode.handle())
     };
 
     button(
         row![
-            svg(icon_path).width(16).height(16).style(theme_icon_style),
+            svg(icon).width(16).height(16).style(theme_icon_style),
             text(label).size(12)
         ]
         .spacing(8)

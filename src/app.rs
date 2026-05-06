@@ -3,6 +3,7 @@ use iced::{Element, Length, Size, Subscription, Task, Theme, event, time};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use crate::assets::{self, SvgAsset};
 use crate::components::dialogs::{DialogForms, DialogKind};
 use crate::components::ui::{VaultTheme, load_fonts, p_font};
 use crate::components::{dialogs, sidebar};
@@ -23,7 +24,7 @@ pub(crate) fn run() -> iced::Result {
     let mut app = iced::application(VaultApp::default, VaultApp::update, VaultApp::view)
         .window(iced::window::Settings {
             size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
-            icon: app_icon(),
+            icon: assets::app_icon(),
             ..Default::default()
         })
         .subscription(VaultApp::subscription)
@@ -36,10 +37,6 @@ pub(crate) fn run() -> iced::Result {
     }
 
     app.run()
-}
-
-fn app_icon() -> Option<iced::window::Icon> {
-    iced::window::icon::from_file_data(include_bytes!("icons/app_icon.png"), None).ok()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -59,11 +56,11 @@ impl Screen {
         }
     }
 
-    pub(crate) const fn icon_path(self) -> &'static str {
+    pub(crate) fn icon(self) -> iced::widget::svg::Handle {
         match self {
-            Self::Browse => "src/icons/browse_icon.svg",
-            Self::Import => "src/icons/import_icon.svg",
-            Self::Settings => "src/icons/settings_icon.svg",
+            Self::Browse => SvgAsset::Browse.handle(),
+            Self::Import => SvgAsset::Import.handle(),
+            Self::Settings => SvgAsset::Settings.handle(),
         }
     }
 }
